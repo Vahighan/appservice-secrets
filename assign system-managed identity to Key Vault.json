@@ -1,0 +1,70 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "certificateKeyVaultName": {
+            "type": "string"
+        },
+        "certificateKeyVaultResourceGroupName": {
+            "type": "string"
+        },
+        "certificateKeyVaultSubscriptionId": {
+            "type": "string"
+        },
+        "managedIdentityName": {
+            "type": "string"
+        },
+        "tenantId": {
+            "type": "string",
+            "defaultValue": "[subscription().tenantId]"
+        }
+    },
+    "variables": {
+        "loaction": "[resourceGroup().location]"
+    },
+    "resources": [
+        {
+            "name": "[parameters('managedIdentityName')]",
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "apiVersion": "2018-11-30",
+            "location": "[variables('loaction')]"
+        },
+        {
+            "name": "grant-access",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-10-01",
+            "subscriptionId": "[parameters('certificateKeyVaultSubscriptionId')]",
+            "resourceGroup": "[parameters('certificateKeyVaultResourceGroupName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('managedIdentityName'))]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                        {
+                            "type": "Microsoft.KeyVault/vaults/accessPolicies",
+                            "name": "[concat(parameters('certificateKeyVaultName'), '/add')]",
+                            "apiVersion": "2019-09-01",
+                            "properties": {
+                                "accessPolicies": [
+                                    {
+                                        "tenantId": "[parameters('tenantId')]",
+                                        "objectId": "[reference(parameters('managedIdentityName')).principalId]",
+                                        "permissions": {
+                                            "secrets": [
+                                                "get"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
